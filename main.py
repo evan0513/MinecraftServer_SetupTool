@@ -5,11 +5,11 @@ import requests
 import tkinter as tk
 from tkinter import messagebox, filedialog
 import threading
-from GUI_v3_Ctk import CreateGUI
+from GUI.GUI_v3_Ctk import CreateGUI
 
 
 # 建立 GUI，會回傳 eula_var
-win, ChoseVersionCombobox, ShowInstallPath, SelectInstallPathButton, progress, CreateServerButton, stateText, InstallState, eula_var, online_mode_var = CreateGUI()
+win, ChoseVersionCombobox, ShowInstallPath, SelectInstallPathButton, progress, CreateServerButton, stateText, InstallState, eula_var, online_mode_var, maximux_memory = CreateGUI()
 
 
 # 取得 PaperMC 版本列表，並更新下拉選單
@@ -70,7 +70,7 @@ def create_startup_files(install_path, jar_file):
     # 建立啟動 bat 檔
     jar_full_path = os.path.join(install_path, jar_file)
     bat_content = f"""@echo off
-java -Xmx4G -Xms2G -jar "{jar_full_path}"
+java -Xmx{int((maximux_memory.get()//512)*512)}M -Xms1024M -jar "{jar_full_path}"
 pause
 """
     bat_path = os.path.join(install_path, "啟動伺服器.bat")
@@ -105,9 +105,15 @@ def edit_server_properties(install_path, online_mode=True):
 
 #-------------------------------------------------------------------------#
 
+def check_dir_clear(download_path):
+    p = os.listdir(download_path)
+    return not p
+
 # 下載伺服器檔案
 def download_server_file(version, download_path):
     try:
+        if not check_dir_clear(download_path):
+            raise BaseException("目標資料夾不為空")
         build = get_latest_build(version)
         if build is None:
             return
@@ -147,6 +153,11 @@ def download_server_file(version, download_path):
         messagebox.showerror("錯誤", f"下載過程中出現錯誤：{e}")
         stateText.configure(text="下載失敗！")
         return None
+    
+    except BaseException as e:
+        messagebox.showerror("錯誤", f"下載過程中出現錯誤：{e}")
+        stateText.configure(text="資料夾不為空!")
+        return None
 
 
 # 主下載函式，先判斷 EULA 是否勾選
@@ -168,7 +179,6 @@ def download_server():
     # 子執行緒執行下載避免卡住UI
     threading.Thread(target=download_server_file, args=(selected_version, install_path), daemon=True).start()
 
-
-CreateServerButton.configure(command=download_server)
-
-win.mainloop()
+if __name__ == "__main__":
+    CreateServerButton.configure(command=download_server)
+    win.mainloop()
