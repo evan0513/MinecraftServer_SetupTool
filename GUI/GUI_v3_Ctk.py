@@ -130,7 +130,6 @@ def CreateGUI():
 
 
     memory_text = ctk.CTkLabel(win, text='最大記憶體用量: 2048 MB (2 GB)', font=('微軟正黑體', 15, 'bold'))
-    # entry = ctk.CTkEntry(win, placeholder_text="最大記憶體用量: 2048 MB (2 GB)", font=('微軟正黑體', 15, 'bold'))
     memory_text.place(x=20, y=200)
 
     total_Mem = psutil.virtual_memory().total
@@ -138,7 +137,6 @@ def CreateGUI():
     memory_bar = ctk.CTkSlider(win, from_=2048, to=total_Mem//1024//1024,number_of_steps = (total_Mem//1024//1024-2048)//512, command=slider_event)
     memory_bar.place(x=20, y=250)
     memory_bar.set(2048)
-    # memory_bar.grid(row=0, column=1, sticky="ns")
 
     stateText = ctk.CTkLabel(win, text='請稍後...', font=('微軟正黑體', 20, 'bold'))
     stateText.place(x=20, y=300)
