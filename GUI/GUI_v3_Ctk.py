@@ -128,7 +128,6 @@ def CreateGUI():
     OnlineModeCheckButton.place(x=20, y=100)
 
 
-
     memory_text = ctk.CTkLabel(win, text='最大記憶體用量: 2048 MB (2 GB)', font=('微軟正黑體', 15, 'bold'))
     memory_text.place(x=20, y=200)
 
