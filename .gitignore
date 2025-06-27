@@ -1,0 +1,8 @@
+build
+__pycache__
+venv
+dist
+*dist
+*.build
+*.exe
+*.onefile-build
