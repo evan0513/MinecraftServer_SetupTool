@@ -23,6 +23,6 @@ MinecraftServer_SetupTool 只需動動手指頭，即可完成Minecraft伺服器
 </h3>
 此專案由Evan小饅頭設立，加上其他網友幫忙維護、新增功能！
 
-如果你想參與維護可以參考 [開發者指南](https://github.com/evan0513/MinecraftServer_SetupTool/docs/developer.md) (🚧施工中🚧)
+如果你想參與維護可以參考 [開發者指南](https://github.com/evan0513/MinecraftServer_SetupTool/blob/main/docs/developer.md) (🚧施工中🚧)
 
 </div>
