@@ -249,9 +249,9 @@ class App(ctk.CTk):
                     self.server.set_eula(True)
                 elif result == "不同意":
                     return
-            
-            self.server.start()
-            self.play_button.configure(text="停止", image=self.img_stop, fg_color = '#E63F39', hover_color='#C43631')
+            if self.server.get_eula_status():
+                self.server.start()
+                self.play_button.configure(text="停止", image=self.img_stop, fg_color = '#E63F39', hover_color='#C43631')
         else:
             def stop_and_update():
                 self.server.stop()
