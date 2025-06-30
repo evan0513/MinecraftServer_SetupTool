@@ -25,4 +25,8 @@ MinecraftServer_SetupTool 只需動動手指頭，即可完成Minecraft伺服器
 
 如果你想參與維護可以參考 [開發者指南](https://github.com/evan0513/MinecraftServer_SetupTool/blob/main/docs/developer.md) (🚧施工中🚧)
 
+<h3>
+  其他授權
+</h3>
+<a href="https://www.flaticon.com/free-icons/java" title="java icons">Java icons created by Freepik - Flaticon</a>
 </div>
