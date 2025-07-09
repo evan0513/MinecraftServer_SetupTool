@@ -1,8 +1,49 @@
-build
-__pycache__
-venv
-dist
-*dist
-*.build
+# MinecraftServerInstaller
+
+# Claude Code related files
+CLAUDE.md
+.claude/
+
+# Git files
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Virtual environments
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.venv
+.env
+
+# PyInstaller
+build/
+dist/
+*.spec
+*.manifest
 *.exe
-*.onefile-build
+*.app
+
+# Package management
+pip-log.txt
+pip-delete-this-directory.txt
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Project specific
+*.log
+.server_status.json
+backups/
+config.json
+servers/
+*.jar
+logs/
