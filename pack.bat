@@ -1,1 +1,0 @@
-nuitka main.py --standalone --onefile --include-data-dir=components=components --enable-plugin=tk-inter
