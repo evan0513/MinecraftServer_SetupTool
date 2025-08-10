@@ -111,9 +111,15 @@ def CreateGUI():
     ChoseVersionCombobox.configure_values(['Test'])
     ChoseVersionCombobox.set("Test")
 
+    user_documents = os.path.join(os.path.expanduser("~"), "Documents")
+    #/\ 取的用戶的文件資料夾
     ShowInstallPath = ctk.CTkEntry(win, width=250)
     ShowInstallPath.place(x=150, y=50)
     ShowInstallPath.configure(state="readonly")
+    ShowInstallPath.delete(0, "end")
+    #/\ 清除文本(怕有bug)
+    default_install_path = os.path.join(user_documents, "minecraft server", version)
+    #/\ 設定預設資料夾
 
     SelectInstallPathButton = ctk.CTkButton(win, text='📁', width=30, height=30)
     SelectInstallPathButton.place(x=410, y=50)
