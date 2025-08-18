@@ -103,14 +103,19 @@ def show_error(title="錯誤", message="發生錯誤"):
 # 判斷 Minecraft 所需 Java 版本
 def get_required_java_version(mc_version):
     try:
-        parts = mc_version.split(".")
-        if mc_version.startswith("1.") and len(parts) > 1 and parts[1].isdigit():
-            major = int(parts[1])
-        elif parts[0].isdigit():
-            major = int(parts[0])
-        else:
-            return 8
-        return 17 if major >= 17 else 8
+        print(mc_version)
+        manifest = requests.get("https://launchermeta.mojang.com/mc/game/version_manifest.json").json()
+        # 只取 release 版本
+        mc_cache = [v for v in manifest.get("versions", []) if v.get("type") == "release"]
+        for v in mc_cache:
+            if v.get("id") == mc_version and "url" in v:
+                url = v["url"]
+                print(url)
+                ver_json = requests.get(url).json()
+                if ver_json:
+                    java_info = ver_json.get("javaVersion")
+                    if java_info and "majorVersion" in java_info:
+                        return int(java_info["majorVersion"])
     except Exception as e:
         print(f"[Java版本判斷錯誤]: {e}")
         return 8
