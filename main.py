@@ -117,8 +117,7 @@ def get_required_java_version(mc_version):
                     if java_info and "majorVersion" in java_info:
                         return int(java_info["majorVersion"])
     except Exception as e:
-        print(f"[Java版本判斷錯誤]: {e}")
-        return 8
+        show_error("Java版本判斷錯誤", str(e))
 
 # 從 Adoptium API 取得 Java 下載連結
 def get_adoptium_download_url(version):
