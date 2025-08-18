@@ -103,14 +103,12 @@ def show_error(title="錯誤", message="發生錯誤"):
 # 判斷 Minecraft 所需 Java 版本
 def get_required_java_version(mc_version):
     try:
-        print(mc_version)
         manifest = requests.get("https://launchermeta.mojang.com/mc/game/version_manifest.json").json()
         # 只取 release 版本
         mc_cache = [v for v in manifest.get("versions", []) if v.get("type") == "release"]
         for v in mc_cache:
             if v.get("id") == mc_version and "url" in v:
                 url = v["url"]
-                print(url)
                 ver_json = requests.get(url).json()
                 if ver_json:
                     java_info = ver_json.get("javaVersion")
@@ -599,3 +597,4 @@ def on_create_server():
 win, CreateServerButton, status_var = CreateGUI()
 CreateServerButton.configure(command=on_create_server)
 win.mainloop()
+
