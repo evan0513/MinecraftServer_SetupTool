@@ -101,16 +101,21 @@ def show_error(title="錯誤", message="發生錯誤"):
     messagebox.showerror(title, message)
 
 # 判斷 Minecraft 所需 Java 版本
+# 1.20.5~ -> 21
+# 1.17~1.20.4-> 17
+# 1.0~1.16.5 -> 8
 def get_required_java_version(mc_version):
     try:
         parts = mc_version.split(".")
         if mc_version.startswith("1.") and len(parts) > 1 and parts[1].isdigit():
             major = int(parts[1])
+            minor = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
         elif parts[0].isdigit():
             major = int(parts[0])
+            minor = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
         else:
             return 8
-        return 17 if major >= 17 else 8
+        return 21 if major >= 21 or (major == 20 and minor >= 5) else 17 if major >= 17 else 8
     except Exception as e:
         print(f"[Java版本判斷錯誤]: {e}")
         return 8
