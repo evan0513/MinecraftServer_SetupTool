@@ -5,11 +5,9 @@ import os
 import sys
 import requests
 import webbrowser
-import zipfile
-import shutil
-import tempfile
+import re
+import subprocess
 import threading
-import time
 ctk.set_appearance_mode("dark")
 ctk.set_default_color_theme("blue")
 
@@ -101,135 +99,186 @@ def show_error(title="錯誤", message="發生錯誤"):
     messagebox.showerror(title, message)
 
 # 判斷 Minecraft 所需 Java 版本
-# 1.20.5~ -> 21
-# 1.17~1.20.4-> 17
-# 1.0~1.16.5 -> 8
+"""
+1.8 to 1.11	Java 8
+1.12 to 1.16.4	Java 11
+1.16.5	Java 16
+1.17.1-1.18.1+	Java 21
+"""
 def get_required_java_version(mc_version):
     try:
-        parts = mc_version.split(".")
-        if mc_version.startswith("1.") and len(parts) > 1 and parts[1].isdigit():
-            major = int(parts[1])
-            minor = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
-        elif parts[0].isdigit():
-            major = int(parts[0])
-            minor = int(parts[1]) if len(parts) > 1 and parts[1].isdigit() else 0
-        else:
+        version_parts = mc_version.split(".")
+        major = int(version_parts[0])
+        minor = int(version_parts[1]) if len(version_parts) > 1 else 0
+        third = int(version_parts[2]) if len(version_parts) > 2 else 0
+
+        if major == 1 and 8 <= minor <= 11:
             return 8
-        return 21 if major >= 21 or (major == 20 and minor >= 5) else 17 if major >= 17 else 8
+        elif major == 1 and 12 <= minor <= 16 and third <= 4:
+            return 11
+        elif major == 1 and minor == 16 and third == 5:
+            return 16
+        elif major == 1 and minor >= 17:
+            return 21
+        elif major >= 17:
+            return 21
     except Exception as e:
-        print(f"[Java版本判斷錯誤]: {e}")
+        show_error("版本解析錯誤", f"無法解析 Minecraft 版本：{e}")
         return 8
 
-# 從 Adoptium API 取得 Java 下載連結
-def get_adoptium_download_url(version):
-    base = f"https://api.adoptium.net/v3/assets/latest/{version}/hotspot"
-    params = {
-        "architecture": "x64",
-        "heap_size": "normal",
-        "image_type": "jdk",
-        "jvm_impl": "hotspot",
-        "os": "windows",
-        "vendor": "eclipse"
-    }
+def test_winget() -> bool:
     try:
-        response = requests.get(base, params=params)
-        response.raise_for_status()
-        data = response.json()
-        return data[0]["binary"]["package"]["link"]
+        result = subprocess.run(["winget", "search", "Java"], capture_output=True, text=True, encoding="utf-8", errors="ignore")
+        if result.returncode == 0:
+            print("[INFO] winget search 成功")
+            return True
+        else:
+            print("[ERROR] winget search 失敗")
+            return False
     except Exception as e:
-        show_error("Java下載失敗", f"取得下載網址時失敗：{e}")
-        return None
+        print(f"[ERROR] winget 測試時發生錯誤: {e}")
+        return False
 
-# 自動下載 Java 並解壓縮、找出 java.exe
-def download_java_with_progress(version, dest_folder, master, finish_callback):
-    download_url = get_adoptium_download_url(version)
-    if not download_url:
-        finish_callback(None)
+# 透過winget下載adoptium OpenJDK
+def download_java_with_progress(major, finish_callback):
+    """
+    透過 winget 下載指定版本的 Eclipse Adoptium Temurin JDK。
+    無參數，下載完成後會呼叫 finish_callback。
+    Args:
+        major (int): 要下載的 Java 主要版本號
+        finish_callback (function): 下載完成後的回呼函數
+    Returns:
+        str or None: 下載完成後的 Java 路徑，失敗時返回 None
+    """
+    java_path = None
+    if test_winget() is False:
+        show_error("winget 錯誤", "請確認已安裝 winget 並且可以正常使用")
+        finish_callback(java_path)
         return
+    try:
+        def download_java_with_winget(java_path=None):
+            # 透過winget安裝
+            result = subprocess.run(["winget", "install", f"EclipseAdoptium.Temurin.{major}.JDK"], capture_output=True, text=True, encoding="utf-8", errors="ignore")
+            if result.returncode == 0:
+                try:
+                    java_path = find_available_java(major)
+                    if java_path:
+                        print(f"[INFO] Java {major} 下載成功")
+                    else:
+                        print(f"[ERROR] 找不到 Java {major} 安裝路徑")
+                except Exception as e:
+                    print(f"[ERROR] 找尋 Java {major} 安裝路徑時發生錯誤: {e}")
+            else:
+                print(f"[ERROR] Java {major} 下載失敗")
+            finish_callback(java_path)
+        threading.Thread(target=download_java_with_winget).start()
+    except Exception as e:
+        show_error("下載錯誤", f"下載 Java {major} 時發生錯誤: {e}")
 
-    # 建立進度視窗
-    progress_win = ctk.CTkToplevel(master)
-    progress_win.configure(fg_color="#222222")
-    progress_win.title("下載中...")
-    progress_win.geometry("400x100")
-    progress_win.resizable(False, False)
-    progress_win.grab_set()
+# 解析java版本
+def get_java_version(java_path: str) -> int:
+    """
+    取得指定 javaw.exe 的主要版本號
+    Get the major version of the given javaw.exe
 
-    label = ctk.CTkLabel(progress_win, text="正在下載 Java，請稍候...", font=("微軟正黑體", 14))
-    label.pack(pady=(10, 10))
+    Args:
+        java_path (str): Java 執行檔的完整路徑
 
-    progress_bar = ctk.CTkProgressBar(progress_win, width=350)
-    progress_bar.pack(pady=(0, 10))
-    progress_bar.set(0)
+    Returns:
+        int or None: Java 主要版本號，失敗時返回 None
+    """
+    try:
+        out = subprocess.check_output([java_path, "-version"], stderr=subprocess.STDOUT, encoding="utf-8")
+        m = re.search(r'version "([0-9]+)\.([0-9]+)', out)
+        if m:
+            major = int(m.group(1))
+            if major == 1:
+                # 1.x 代表 Java 8 及以前
+                m2 = re.search(r'version "1\.([0-9]+)', out)
+                if m2 and m2.group(1) == "8":
+                    return 8
+                return major
+            return major
+        m = re.search(r'version "1\.([0-9]+)', out)
+        if m:
+            if m.group(1) == "8":
+                return 8
+            return int(m.group(1))
+    except Exception as e:
+        print(f"[ERROR] 解析 Java 版本時發生錯誤: {e}")
+    return None
 
-    temp_zip = os.path.join(tempfile.gettempdir(), f"java{version}.zip")
+def find_available_java(required_major: int):
+    """
+    嘗試尋找系統上可用的 Java 執行檔，優先找 Eclipse Adoptium、Temurin、常見安裝路徑，並透過 where java 查找
+    Args:
+        required_major (int): 需要的 Java 主要版本號
+    Returns:
+        str or None: javaw.exe 的完整路徑，找不到則回傳 None
+    """
+    COMMON_JAVA_PATHS = [
+        r"C:\\Program Files\\Eclipse Adoptium", # EclipseAdoptium.Temurin winget安裝路徑
+        r"C:\\Program Files\\Eclipse Foundation", # Eclipse Foundation winget安裝路徑
+        r"C:\\Program Files\\Java", # Oracle JDK 常見安裝路徑
+        r"C:\\Program Files (x86)\\Java", # Oracle JDK (x86) 常見安裝路徑
+        r"C:\\Program Files\\Microsoft", # Microsoft OpenJDK winget安裝路徑
+        r"C:\\Program Files\\AdoptOpenJDK", # AdoptOpenJDK winget安裝路徑
+    ]
+    ENV_VARS = ["JAVA_HOME"]
 
-    def on_download_finish(java_path):
-        progress_win.destroy()
-        master.after(0, lambda: finish_callback(java_path))
+    found_java_paths = []
 
-    def download_task():
-        java_path = None
-        try:
-            # 加入 retry 機制
-            session = requests.Session()
-            retries = requests.adapters.Retry(
-                total=3,
-                backoff_factor=1,
-                status_forcelist=[502, 503, 504]
-            )
-            adapter = requests.adapters.HTTPAdapter(max_retries=retries)
-            session.mount('https://', adapter)
+    # 1. 檢查常見安裝路徑
+    for base_dir in COMMON_JAVA_PATHS:
+        if os.path.isdir(base_dir):
+            for name in os.listdir(base_dir):
+                m = re.match(r"(jdk-|temurin-?)([0-9]+)", name, re.IGNORECASE)
+                if m:
+                    javaw_path = os.path.join(base_dir, name, "bin", "javaw.exe")
+                    if os.path.isfile(javaw_path):
+                        found_java_paths.append(javaw_path)
 
-            with session.get(download_url, stream=True) as r:
-                r.raise_for_status()
-                total_length = int(r.headers.get('content-length', 0))
-                dl = 0
-                start_time = time.time()
-                last_update_time = time.time()
+    # 2. 檢查 JAVA_HOME
+    for env in ENV_VARS:
+        java_home = os.environ.get(env)
+        if java_home:
+            javaw_path = os.path.join(java_home, "bin", "javaw.exe")
+            if os.path.isfile(javaw_path):
+                found_java_paths.append(javaw_path)
 
-                with open(temp_zip, 'wb') as f:
-                    for chunk in r.iter_content(chunk_size=262144):  # 更大的 chunk
-                        if chunk:
-                            f.write(chunk)
-                            dl += len(chunk)
+    # 3. 透過 where java 查找所有可用 java
+    try:
+        result = subprocess.run(["where", "java"], capture_output=True, text=True, shell=False, encoding="utf-8", errors="ignore")
+        if result.returncode == 0:
+            java_paths = result.stdout.strip().splitlines()
+            found_java_paths.extend(java_paths)
+    except Exception as e:
+        print(f"where java 查找失敗：{e}")
 
-                            # 節流進度條更新 (每0.05秒最多一次)
-                            if total_length > 0:
-                                now = time.time()
-                                if now - last_update_time > 0.05:
-                                    progress = dl / total_length
-                                    progress_bar.set(progress)
+    # 4. 檢查所有環境變數(系統+使用者)中含有'java'的路徑
+    try:
+        for key, value in os.environ.items():
+            if not value:
+                continue
+            # 只處理路徑型變數
+            if isinstance(value, str) and 'java' in value.lower():
+                # 支援多個路徑(如PATH)
+                for path in value.split(os.pathsep):
+                    if 'java' in path.lower():
+                        javaw_path = os.path.join(path, "bin", "javaw.exe")
+                        if os.path.isfile(javaw_path):
+                            found_java_paths.append(javaw_path)
+    except Exception as e:
+        print(f"環境變數尋找 java 失敗：{e}")
 
-                                    # 顯示速度（可省略）
-                                    elapsed = now - start_time
-                                    speed_kb = dl / 1024 / elapsed
-                                    label.configure(text=f"正在下載 Java... {speed_kb:.1f} KB/s")
-                                    last_update_time = now
+    # 根據 required_major 傳回需要的 java_path
+    for java_path in found_java_paths:
+        version = get_java_version(java_path)
+        if version == required_major:
+            return os.path.normpath(java_path)
 
-            # 解壓縮
-            extract_path = os.path.join(dest_folder, f"java{version}")
-            if os.path.exists(extract_path):
-                shutil.rmtree(extract_path)
-            with zipfile.ZipFile(temp_zip, 'r') as zip_ref:
-                zip_ref.extractall(extract_path)
+    return None
 
-            # 找到 java.exe 路徑
-            for root, dirs, files in os.walk(extract_path):
-                if "java.exe" in files:
-                    java_path = os.path.join(root, "java.exe")
-                    break
-
-            if not java_path:
-                show_error("Java未找到", "無法找到下載的 Java 執行檔")
-
-        except Exception as e:
-            show_error("Java下載失敗", f"錯誤: {e}")
-            java_path = None
-        finally:
-            on_download_finish(java_path)
-
-    threading.Thread(target=download_task, daemon=True).start()
 # 取得可用的 Paper 版本列表
 def get_paper_versions():
     try:
@@ -310,7 +359,6 @@ def create_server_properties(folder_path, online_mode, max_players, pvp, server_
 # 開啟 EULA 網頁連結
 def open_eula_link(event=None):
     webbrowser.open("https://account.mojang.com/documents/minecraft_eula")
-
 
 # GUI 主體與元件建構
 def CreateGUI():
@@ -523,6 +571,7 @@ def CreateGUI():
     CreateServerButton.grid(row=8, column=2, columnspan=3, padx=(20, 20), pady=(5, 5), sticky="ew")
 
     return win, CreateServerButton, status_var
+
 def on_create_server():
     # 先取得所有設定值
     folder = InstallPathEntry.get().strip()
@@ -575,22 +624,29 @@ def on_create_server():
         except Exception as e:
             setup_finished(False, f"建立伺服器時發生錯誤：{e}")
 
-    # 如果需要下載 Java，先下載 Java 再繼續架設
+    # 如果需要下載 Java，先檢查本機有無可用的 Java，若無才下載
     if Download_Java_CheckBox_var.get():
-        required_java = get_required_java_version(version)
-        status_var.set(f"開始下載 Java {required_java}...")
+        required_major = get_required_java_version(version)
+        status_var.set(f"檢查本機 Java {required_major}...")
 
-        def on_java_download_finished(java_path):
-            if java_path:
-                status_var.set("Java 下載完成，繼續架設伺服器")
-                continue_setup(java_path)
-            else:
-                status_var.set("Java 下載失敗")
-                messagebox.showerror("錯誤", "Java 下載失敗，無法繼續架設")
+        java_path = find_available_java(required_major)
+        if java_path:
+            status_var.set(f"已找到 Java {required_major}，繼續架設伺服器")
+            continue_setup(java_path)
+        else:
+            status_var.set(f"開始下載 Java {required_major}...")
 
-        # 這邊呼叫你自訂的下載函式，需要支援 callback
-        download_java_with_progress(required_java, folder, win, on_java_download_finished)
+            def on_java_download_finished(java_path):
+                if java_path:
+                    status_var.set("Java 下載完成，繼續架設伺服器")
+                    continue_setup(java_path)
+                else:
+                    status_var.set("Java 下載失敗")
+                    messagebox.showerror("錯誤", "Java 下載失敗，無法繼續架設")
 
+            # 這邊呼叫你自訂的下載函式，需要支援 callback
+            messagebox.showinfo(f"即將開始下載JAVA {required_major}","將要使用winget下載AdoptOpenJDK，稍後視窗UAC請按是以便安裝")
+            download_java_with_progress(required_major, on_java_download_finished)
     else:
         # 不下載 Java，直接架設
         continue_setup(None)
