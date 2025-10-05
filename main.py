@@ -409,9 +409,14 @@ def CreateGUI():
     MaxMemory_Display = tk.StringVar()
 
     def update_memory_display(*args):
-        MinMemory_Display.set(f"{MinMemory_var.get()} MB")
-        MaxMemory_Display.set(f"{MaxMemory_var.get()} MB")
-
+        min_val = MinMemory_var.get()
+        max_val = MaxMemory_var.get()
+        # 確保最小 <= 最大
+        if min_val > max_val:
+            MaxMemory_var.set(min_val)
+            max_val = min_val
+        MinMemory_Display.set(f"{min_val} MB")
+        MaxMemory_Display.set(f"{max_val} MB")
     MinMemory_var.trace_add("write", update_memory_display)
     MaxMemory_var.trace_add("write", update_memory_display)
     update_memory_display()
