@@ -605,4 +605,3 @@ def on_create_server():
 win, CreateServerButton, status_var = CreateGUI()
 CreateServerButton.configure(command=on_create_server)
 win.mainloop()
-
